@@ -3,9 +3,15 @@ package main
 import (
 	"encoding/csv"
 	"encoding/json"
+	"fmt"
+	"log"
+	"math/rand"
 	"net/http"
 	"strconv"
 	"strings"
+
+	"github.com/gorilla/handlers"
+	"github.com/gorilla/mux"
 )
 
 var bdongs []BDONG
@@ -57,4 +63,76 @@ func readFileUrl(filePathUrl string) ([][]string, error) {
 func getONGS(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(bdongs)
+}
+
+// Get single ong
+func getONG(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	params := mux.Vars(r)
+
+	for _, item := range bdongs {
+		numero, _ := strconv.Atoi(params["id"])
+		if item.Numero == numero {
+			json.NewEncoder(w).Encode(item)
+			return
+		}
+	}
+	json.NewEncoder(w).Encode(&BDONG{})
+}
+
+// Get single ong
+func getCategory(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	w.Header().Set("Content-Type", "application/json")
+
+	var bdong BDONG
+	_ = json.NewDecoder(r.Body).Decode(&bdong)
+
+	k := 20 + rand.Intn(20)
+	fmt.Println(k)
+
+	bdongs = append(bdongs, bdong)
+
+	//payload, _ := json.MarshalJSON()
+	//w.Write(payload)
+}
+
+// Add new ong
+func createOng(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	var bdong BDONG
+	_ = json.NewDecoder(r.Body).Decode(&bdong)
+	bdongs = append(bdongs, bdong)
+	json.NewEncoder(w).Encode(bdong)
+}
+
+func main() {
+	//filePathUrl := "dataset/Base-de-Datos-de-las-ONGD-I-Trimestre-2018_0.csv"
+	filePathUrl := "https://raw.githubusercontent.com/sigiandre/TF-Programacion-Concurrente-y-Distribuida-Backend/master/dataset/Base-de-Datos-de-las-ONGD-I-Trimestre-2018_0.csv"
+	lines, err := readFileUrl(filePathUrl)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println("Leyo archivos")
+	lineToStruc(lines)
+	fmt.Println("Parseo Archivos")
+
+	r := mux.NewRouter()
+
+	r.HandleFunc("/ongs", getONGS).Methods("GET")
+	r.HandleFunc("/ongs/{id}", getONG).Methods("GET")
+	r.HandleFunc("/ongs", createOng).Methods("POST")
+	r.HandleFunc("/knn", getCategory).Methods("POST")
+
+	headers := handlers.AllowedHeaders([]string{"X-Requested-With", "Content-Type", "Authorization"})
+	methods := handlers.AllowedMethods([]string{"GET", "POST", "PUT", "DELETE"})
+	origins := handlers.AllowedOrigins([]string{"*"})
+
+	// Start server
+	port := ":8000"
+	fmt.Println("Escuchando en " + port)
+	//main3()
+	log.Fatal(http.ListenAndServe(port, handlers.CORS(headers, methods, origins)(r)))
+
 }
