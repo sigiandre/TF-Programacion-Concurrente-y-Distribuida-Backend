@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/csv"
+	"encoding/json"
 	"net/http"
 	"strconv"
 	"strings"
@@ -50,4 +51,10 @@ func readFileUrl(filePathUrl string) ([][]string, error) {
 		return [][]string{}, err
 	}
 	return lines, nil
+}
+
+// Get all ONG
+func getONGS(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(bdongs)
 }
