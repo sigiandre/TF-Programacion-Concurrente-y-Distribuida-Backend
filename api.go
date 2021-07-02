@@ -152,7 +152,6 @@ func realizarKnn(res http.ResponseWriter, req *http.Request) {
 }
 
 func main() {
-	//filePathUrl := "dataset/Base-de-Datos-de-las-ONGD-I-Trimestre-2018_0.csv"
 	filePathUrl := "https://raw.githubusercontent.com/sigiandre/TF-Programacion-Concurrente-y-Distribuida-Backend/master/dataset/Base-de-Datos-de-las-ONGD-I-Trimestre-2018_0.csv"
 	lines, err := readFileUrl(filePathUrl)
 	if err != nil {
@@ -176,7 +175,6 @@ func main() {
 	// Start server
 	port := ":8000"
 	fmt.Println("Escuchando en " + port)
-	//main3()
 	log.Fatal(http.ListenAndServe(port, handlers.CORS(headers, methods, origins)(r)))
 
 }
