@@ -191,13 +191,9 @@ func realizarKnn(res http.ResponseWriter, req *http.Request) {
 }
 
 func main() {
-<<<<<<< Updated upstream
-=======
-
 	bufferIn := bufio.NewReader(os.Stdin)
 
 	//filePathUrl := "dataset/Base-de-Datos-de-las-ONGD-I-Trimestre-2018_0.csv"
->>>>>>> Stashed changes
 	filePathUrl := "https://raw.githubusercontent.com/sigiandre/TF-Programacion-Concurrente-y-Distribuida-Backend/master/dataset/Base-de-Datos-de-las-ONGD-I-Trimestre-2018_0.csv"
 	lines, err := readFileUrl(filePathUrl)
 	if err != nil {
