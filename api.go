@@ -80,6 +80,15 @@ func getONG(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(&BDONG{})
 }
 
+// Add new ong
+func createOng(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	var bdong BDONG
+	_ = json.NewDecoder(r.Body).Decode(&bdong)
+	bdongs = append(bdongs, bdong)
+	json.NewEncoder(w).Encode(bdong)
+}
+
 // Get single ong
 func getCategory(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
@@ -94,17 +103,8 @@ func getCategory(w http.ResponseWriter, r *http.Request) {
 
 	bdongs = append(bdongs, bdong)
 
-	//payload, _ := json.MarshalJSON()
+	//payload, _ := json.MarshalJson()
 	//w.Write(payload)
-}
-
-// Add new ong
-func createOng(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	var bdong BDONG
-	_ = json.NewDecoder(r.Body).Decode(&bdong)
-	bdongs = append(bdongs, bdong)
-	json.NewEncoder(w).Encode(bdong)
 }
 
 func main() {
