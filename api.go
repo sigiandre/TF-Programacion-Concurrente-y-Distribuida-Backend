@@ -1,18 +1,22 @@
+//https://www.datosabiertos.gob.pe/dataset/base-de-datos-organizaciones-no-gubernamentales-de-desarrollo-ongd/resource/8a550153-0d26
+
 package main
 
 import (
-	"bufio"
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
-	"io"
 	"log"
 	"net"
 	"net/http"
-	"os"
 	"strconv"
 	"strings"
+
+	"github.com/gorilla/handlers"
+	"github.com/gorilla/mux"
 )
+
+var bdongs []BDONG
 
 type knnNode struct {
 	Distancia float64
@@ -20,11 +24,7 @@ type knnNode struct {
 	y         int
 	estado    string
 }
-type Respuesta struct {
-	Mensaje string
-}
-
-type Ong struct {
+type BDONG struct {
 	Numero        int    `json:"numero"`
 	Institucion   string `json:"institucion"`
 	Departamento  string `json:"departamento"`
@@ -34,43 +34,61 @@ type Ong struct {
 	Sector        string `json:"sector"`
 }
 
-//variables globales
-var Dataset = [1000]Ong{}
-var eschucha_funcion bool
-var remotehost string
-var chCont chan int
-var n, min, valorUsuario int
+func lineToStruc(lines [][]string) {
+	// Recorre líneas y conviértete en objeto
+	for _, line := range lines {
+		Numero, _ := strconv.Atoi(strings.TrimSpace(line[0]))
 
-func enviar(num int) { //enviar el numero mayor al host remoto
-	conn, _ := net.Dial("tcp", remotehost)
-	defer conn.Close()
-	//envio el número
-	fmt.Fprintf(conn, "%d\n", num)
-}
-
-func enviar_Principal(num int) { //enviar el numero mayor al host remoto
-	conn, _ := net.Dial("tcp", "localhost:8000")
-	defer conn.Close()
-	//envio el número
-	fmt.Fprintf(conn, "%d\n", num)
-}
-
-func manejador_respueta(conn net.Conn) bool {
-	defer conn.Close()
-	eschucha_funcion = false
-	bufferIn := bufio.NewReader(conn)
-	numStr, _ := bufferIn.ReadString('\n')
-	numStr = strings.TrimSpace(numStr)
-	numero, _ := strconv.Atoi(numStr)
-	strNumero := strconv.Itoa(numero)
-	if strNumero[1] == 49 {
-		return true
-	} else {
-		return false
+		bdongs = append(bdongs, BDONG{
+			Numero:        Numero,
+			Institucion:   strings.TrimSpace(line[1]),
+			Departamento:  strings.TrimSpace(line[2]),
+			Provincia:     strings.TrimSpace(line[3]),
+			Distrito:      strings.TrimSpace(line[4]),
+			Representante: strings.TrimSpace(line[5]),
+			Sector:        strings.TrimSpace(line[6]),
+		})
 	}
 }
 
-func knn(usuario *Ong) bool {
+func readFileUrl(filePathUrl string) ([][]string, error) {
+	// Abrir archivo CSV
+	f, err := http.Get(filePathUrl)
+	if err != nil {
+		return [][]string{}, err
+	}
+	defer f.Body.Close()
+
+	// Leer archivo en una variable
+	lines, err := csv.NewReader(f.Body).ReadAll()
+	if err != nil {
+		return [][]string{}, err
+	}
+	return lines, nil
+}
+
+// Get all ONG
+func getONGS(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(bdongs)
+}
+
+// Get single ong
+func getONG(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	params := mux.Vars(r)
+
+	for _, item := range bdongs {
+		numero, _ := strconv.Atoi(params["id"])
+		if item.Numero == numero {
+			json.NewEncoder(w).Encode(item)
+			return
+		}
+	}
+	json.NewEncoder(w).Encode(&BDONG{})
+}
+
+func knn(usuario *BDONG) bool {
 	var knnNodes = [100]knnNode{}
 	chDistancia := make(chan float64)
 	chY := make(chan int)
@@ -98,39 +116,21 @@ func knn(usuario *Ong) bool {
 		}
 	}
 	if count >= 3 {
-		log.Println("-----------------------------------")
+		log.Println("-------------------------------------------")
 		return true
 	} else {
-		log.Println("-----------------------------------")
+		log.Println("-------------------------------------------")
 		return false
 	}
 }
 
-func LeerDataSetFromGit() {
-	response, err := http.Get("https://raw.githubusercontent.com/sigiandre/TF-Programacion-Concurrente-y-Distribuida-Backend/master/dataset/Base-de-Datos-de-las-ONGD-I-Trimestre-2018_0.csv") //use package "net/http"
-	if err != nil {
-		log.Println(err)
-		return
-	}
-	defer response.Body.Close()
-	reader := csv.NewReader(response.Body)
-	reader.Comma = ','
-	if err != nil {
-		log.Println(nil)
-	}
-	log.Println(Dataset)
-}
-
-func mostrarDataset(res http.ResponseWriter, req *http.Request) {
-	allowedHeaders := "Accept, Content-Type, Content-Length, Accept-Encoding, Authorization,X-CSRF-Token"
-	log.Println("Llamada al endpoint /dataset")
-	res.Header().Set("Content-Type", "application/json; charset=utf-8")
-	res.Header().Set("Access-Control-Allow-Origin", "*")
-	res.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
-	res.Header().Set("Access-Control-Allow-Headers", allowedHeaders)
-	res.Header().Set("Access-Control-Expose-Headers", "Authorization")
-	jsonBytes, _ := json.MarshalIndent(Dataset, "", "\t")
-	io.WriteString(res, string(jsonBytes))
+// Add new ong
+func createOng(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	var bdong BDONG
+	_ = json.NewDecoder(r.Body).Decode(&bdong)
+	bdongs = append(bdongs, bdong)
+	json.NewEncoder(w).Encode(bdong)
 }
 
 func realizarKnn(res http.ResponseWriter, req *http.Request) {
@@ -143,89 +143,40 @@ func realizarKnn(res http.ResponseWriter, req *http.Request) {
 	res.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
 	res.Header().Set("Access-Control-Allow-Headers", allowedHeaders)
 	res.Header().Set("Access-Control-Expose-Headers", "Authorization")
-	temp := "1"
+
 	conn, _ := net.Dial("tcp", "localhost:8001")
 	defer conn.Close()
 
-	i, _ := strconv.Atoi(temp)
-	log.Println(i)
-
-	fmt.Fprintf(conn, "%d\n", i)
-
 	ln, _ := net.Listen("tcp", "localhost:8000")
 	defer ln.Close()
-	eschucha_funcion = true
-}
-
-func handleRequest() {
-
-	http.HandleFunc("/dataset", mostrarDataset)
-	http.HandleFunc("/knn", realizarKnn)
-	log.Fatal(http.ListenAndServe(":9200", nil))
 }
 
 func main() {
-	bufferIn := bufio.NewReader(os.Stdin)
-	LeerDataSetFromGit()
-	//tipo de nodo
-	log.Print("Ingrese el tipo de nodo (i:inicio -n:intermedio - f:final): ")
-	tipo, _ := bufferIn.ReadString('\n')
-	tipo = strings.TrimSpace(tipo)
-
-	if tipo == "i" {
-		handleRequest()
+	//filePathUrl := "dataset/Base-de-Datos-de-las-ONGD-I-Trimestre-2018_0.csv"
+	filePathUrl := "https://raw.githubusercontent.com/sigiandre/TF-Programacion-Concurrente-y-Distribuida-Backend/master/dataset/Base-de-Datos-de-las-ONGD-I-Trimestre-2018_0.csv"
+	lines, err := readFileUrl(filePathUrl)
+	if err != nil {
+		panic(err)
 	}
-	if tipo == "n" {
-		//establecer el identificador del host local (IP:puerto)
-		log.Print("Ingrese el puerto local: ")
-		puerto, _ := bufferIn.ReadString('\n')
-		puerto = strings.TrimSpace(puerto)
-		localhost := ("localhost:" + puerto)
+	fmt.Println("Leyo archivos")
+	lineToStruc(lines)
+	fmt.Println("Parseo Archivos")
 
-		//establecer el identificador del host remoto (IP:puerto)
-		log.Print("Ingrese el puerto remoto:")
-		puerto, _ = bufferIn.ReadString('\n')
-		puerto = strings.TrimSpace(puerto)
-		remotehost = ("localhost:" + puerto)
+	r := mux.NewRouter()
 
-		//Cantidad de numero a recibir x nodo
+	r.HandleFunc("/ongs", getONGS).Methods("GET")
+	r.HandleFunc("/ongs/{id}", getONG).Methods("GET")
+	r.HandleFunc("/ongs", createOng).Methods("POST")
+	r.HandleFunc("/knn", realizarKnn).Methods("POST")
 
-		//canal para el contador
-		chCont = make(chan int, 1) //canal asincrono
-		chCont <- 0
+	headers := handlers.AllowedHeaders([]string{"X-Requested-With", "Content-Type", "Authorization"})
+	methods := handlers.AllowedMethods([]string{"GET", "POST", "PUT", "DELETE"})
+	origins := handlers.AllowedOrigins([]string{"*"})
 
-		//establecer el modo escucha del nodo
-		ln, _ := net.Listen("tcp", localhost)
-		defer ln.Close()
-		for {
-			//manejador de conexiones
-			conn, _ := ln.Accept()
-			go manejador_respueta(conn)
-		}
-	}
-	if tipo == "f" {
-		//establecer el identificador del host local (IP:puerto)
-		log.Print("Ingrese el puerto local: ")
-		puerto, _ := bufferIn.ReadString('\n')
-		puerto = strings.TrimSpace(puerto)
-		localhost := ("localhost:" + puerto)
-
-		//establecer el identificador del host remoto (IP:puerto)
-
-		//Cantidad de numero a recibir x nodo
-
-		//canal para el contador
-		chCont = make(chan int, 1) //canal asincrono
-		chCont <- 0
-
-		//establecer el modo escucha del nodo
-		ln, _ := net.Listen("tcp", localhost)
-		defer ln.Close()
-		for {
-			//manejador de conexiones
-			conn, _ := ln.Accept()
-			go manejador_respueta(conn)
-		}
-	}
+	// Start server
+	port := ":8000"
+	fmt.Println("Escuchando en " + port)
+	//main3()
+	log.Fatal(http.ListenAndServe(port, handlers.CORS(headers, methods, origins)(r)))
 
 }
